@@ -1,4 +1,9 @@
-import { IsEmail, IsString, IsStrongPassword } from 'class-validator';
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  IsStrongPassword,
+} from 'class-validator';
 
 export class SignUpDto {
   @IsString()
@@ -8,6 +13,22 @@ export class SignUpDto {
   @IsEmail()
   email: string;
 
-  @IsStrongPassword()
+  @IsStrongPassword(
+    {
+      minLength: 8,
+      minLowercase: 1,
+      minUppercase: 1,
+      minNumbers: 1,
+      minSymbols: 1,
+    },
+    {
+      message:
+        'Password must be at least 10 characters and include upper, lower, number, and symbol',
+    },
+  )
   password: string;
+
+  @IsOptional()
+  @IsString()
+  phone: string;
 }

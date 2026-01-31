@@ -30,10 +30,14 @@ export class AuthService {
     if (user) throw new ConflictException('User already exists');
 
     const hashedPassword = await argon2.hash(signupDto.password);
-    return this.userService.create({
+    const newUser = await this.userService.create({
       ...signupDto,
       password: hashedPassword,
     });
+    return {
+      message: 'User created successfully',
+      data: newUser,
+    };
   }
 
   async validateLocalUser(loginDto: LoginDto) {
@@ -58,7 +62,7 @@ export class AuthService {
       name,
     });
     await this.updateRefreshToken(userId, refreshToken);
-    return {
+    const response = {
       user: {
         id: userId,
         name: name,
@@ -68,10 +72,15 @@ export class AuthService {
         refreshToken,
       },
     };
+    return {
+      message: 'User created successfully',
+      date: response,
+    };
   }
 
   async logout(userId: string) {
     await this.userService.logout(userId);
+    return { message: 'Logout successful' };
   }
 
   async generateToken(
