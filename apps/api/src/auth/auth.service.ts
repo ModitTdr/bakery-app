@@ -2,15 +2,28 @@ import {
   ConflictException,
   Injectable,
   UnauthorizedException,
+  Inject,
 } from '@nestjs/common';
 import { SignUpDto } from './dto/signup.dto';
 import { UserService } from 'src/user/user.service';
 import * as argon2 from 'argon2';
 import { LoginDto } from './dto/login.dto';
+import { JwtService } from '@nestjs/jwt';
+import { AuthJwtPayload } from './types/auth.jwtpayload';
+import refreshJwtConfig from './config/refresh-jwt.config';
+import type { ConfigType } from '@nestjs/config';
+import jwtConfig from './config/jwt.config';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly jwtService: JwtService,
+    @Inject(refreshJwtConfig.KEY)
+    private refreshTokenConfig: ConfigType<typeof refreshJwtConfig>,
+    @Inject(jwtConfig.KEY)
+    private jConfig: ConfigType<typeof jwtConfig>,
+  ) {}
 
   async signup(signupDto: SignUpDto) {
     const user = await this.userService.findByEmail(signupDto.email);
@@ -25,8 +38,6 @@ export class AuthService {
 
   async validateLocalUser(loginDto: LoginDto) {
     const user = await this.userService.findByEmail(loginDto.email);
-    console.log('logindto', loginDto);
-    console.log('user', user);
     if (!user) throw new UnauthorizedException('Invalid credentials');
     const isPasswordMatched = await argon2.verify(
       user.password,
@@ -38,6 +49,73 @@ export class AuthService {
     return {
       id: user.id,
       name: user.name,
+    };
+  }
+
+  async login(userId: string, name: string) {
+    const { accessToken, refreshToken } = await this.generateToken({
+      sub: userId,
+      name,
+    });
+    await this.updateRefreshToken(userId, refreshToken);
+    return {
+      user: {
+        id: userId,
+        name: name,
+      },
+      tokens: {
+        accessToken,
+        refreshToken,
+      },
+    };
+  }
+
+  async logout(userId: string) {
+    await this.userService.logout(userId);
+  }
+
+  async generateToken(
+    payload: AuthJwtPayload,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(payload, this.jConfig),
+      this.jwtService.signAsync(payload, this.refreshTokenConfig),
+    ]);
+
+    return {
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  async updateRefreshToken(userId: string, refreshToken: string) {
+    const hashedToken = await argon2.hash(refreshToken);
+    return await this.userService.update(userId, { refreshToken: hashedToken });
+  }
+
+  async refreshToken(userId: string, refreshToken: string) {
+    const user = await this.userService.findOne(userId);
+    if (!user || !user.refreshToken)
+      throw new UnauthorizedException('Access Denied');
+
+    const isRefreshTokenMatched = await argon2.verify(
+      user.refreshToken,
+      refreshToken,
+    );
+    if (!isRefreshTokenMatched)
+      throw new UnauthorizedException('Access Denied');
+
+    const { accessToken, refreshToken: newRefreshToken } =
+      await this.generateToken({
+        sub: user.id,
+        name: user.name,
+      });
+
+    await this.updateRefreshToken(user.id, newRefreshToken);
+
+    return {
+      accessToken,
+      refreshToken: newRefreshToken,
     };
   }
 }
