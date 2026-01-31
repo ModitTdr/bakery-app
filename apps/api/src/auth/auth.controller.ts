@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Post,
-  Body,
-  UseGuards,
-  Request,
-  Get,
-} from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignUpDto } from './dto/signup.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
@@ -38,11 +31,5 @@ export class AuthController {
   @Post('refresh')
   refresh(@Request() req: { user: { sub: string; refreshToken: string } }) {
     return this.authService.refreshToken(req.user.sub, req.user.refreshToken);
-  }
-
-  @UseGuards(JwtGuard)
-  @Get('test')
-  test() {
-    return { msg: 'authorized' };
   }
 }
