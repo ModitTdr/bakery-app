@@ -35,7 +35,7 @@ export class AuthService {
       password: hashedPassword,
     });
     return {
-      message: 'User created successfully',
+      message: 'Registered successfully',
       data: newUser,
     };
   }
