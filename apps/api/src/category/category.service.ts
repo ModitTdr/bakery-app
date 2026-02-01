@@ -12,11 +12,19 @@ export class CategoryService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createCategoryDto: CreateCategoryDto) {
-    const category = await this.prisma.category.create({
-      data: createCategoryDto,
+    const name = createCategoryDto.name?.trim().toLowerCase();
+    const existingCategory = await this.prisma.category.findUnique({
+      where: { name },
     });
+    if (existingCategory)
+      throw new BadRequestException('Category already exists');
 
-    return { message: 'Category created successfully', data: category };
+    const newCategory = await this.prisma.category.create({
+      data: {
+        name: name,
+      },
+    });
+    return { message: 'Category created successfully', data: newCategory };
   }
 
   async findAll() {
@@ -36,14 +44,20 @@ export class CategoryService {
   }
 
   async update(id: string, dto: UpdateCategoryDto) {
-    if (!dto || Object.keys(dto).length === 0) {
-      throw new BadRequestException('At least one field must be provided');
-    }
-    const category = await this.prisma.category.update({
-      where: { id },
-      data: dto,
+    const name = dto.name.trim().toLowerCase();
+    if (!name) throw new BadRequestException('Name is required');
+
+    const existingCategory = await this.prisma.category.findUnique({
+      where: { name },
     });
 
+    if (existingCategory && existingCategory.id !== id)
+      throw new BadRequestException('Category already exists');
+
+    const category = await this.prisma.category.update({
+      where: { id },
+      data: { name },
+    });
     return { message: 'Category updated', data: category };
   }
 

@@ -53,13 +53,15 @@ export class AuthService {
     return {
       id: user.id,
       name: user.name,
+      role: user.role,
     };
   }
 
-  async login(userId: string, name: string) {
+  async login(userId: string, name: string, role: string) {
     const { accessToken, refreshToken } = await this.generateToken({
       sub: userId,
       name,
+      role,
     });
     await this.updateRefreshToken(userId, refreshToken);
     const response = {
@@ -118,6 +120,7 @@ export class AuthService {
       await this.generateToken({
         sub: user.id,
         name: user.name,
+        role: user.role,
       });
 
     await this.updateRefreshToken(user.id, newRefreshToken);
