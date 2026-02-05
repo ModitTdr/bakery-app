@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -53,21 +54,23 @@ export class ProductService {
         data: product,
       };
     } catch {
-      throw new Error('Failed to create product with images');
+      throw new InternalServerErrorException(
+        'Failed to create product with images',
+      );
     }
   }
 
   async findAll() {
     const products = await this.prisma.product.findMany({
-      include: { productImages: { take: 1 } },
+      include: { productImages: { take: 1 }, category: true },
     });
     if (!products) throw new NotFoundException('Product not found');
     return products;
   }
   async findOne(id: string) {
-    const product = await this.prisma.product.findFirst({
+    const product = await this.prisma.product.findUnique({
       where: { id },
-      include: { productImages: true },
+      include: { productImages: true, category: true },
     });
     if (!product) throw new NotFoundException('Product not found');
     return product;
@@ -76,10 +79,9 @@ export class ProductService {
   async update(
     id: string,
     updateProductDto: UpdateProductDto,
-    images: Express.Multer.File[],
+    images?: Express.Multer.File[],
   ) {
-    const product = await this.findOne(id);
-    if (!product) throw new NotFoundException('Product not found');
+    await this.findOne(id);
 
     let uploadedImages: UploadApiResponse[] = [];
     if (images && images.length > 0) {
@@ -117,9 +119,34 @@ export class ProductService {
   }
 
   async remove(id: string) {
+    const product = await this.findOne(id);
+    if (product.productImages.length > 0) {
+      await Promise.all(
+        product.productImages.map((img) =>
+          this.cloudinary.deleteImage(img.publicId),
+        ),
+      );
+    }
     await this.prisma.product.delete({ where: { id } });
     return {
       message: 'Product deleted successfully',
+    };
+  }
+
+  async removeImg(id: string) {
+    const img = await this.prisma.productImage.findUnique({
+      where: { id },
+    });
+    if (!img) throw new NotFoundException('Image not found on Cloudinary');
+
+    const result = await this.cloudinary.deleteImage(img.publicId);
+    if (result.result !== 'ok')
+      throw new NotFoundException('Image not found on Cloudinary');
+
+    await this.prisma.productImage.delete({ where: { id } });
+
+    return {
+      message: 'Image deleted successfully',
     };
   }
 }
