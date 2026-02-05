@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CategoryService } from 'src/category/category.service';
@@ -69,13 +73,42 @@ export class ProductService {
     return product;
   }
 
-  async update(id: string, updateProductDto: UpdateProductDto) {
+  async update(
+    id: string,
+    updateProductDto: UpdateProductDto,
+    images: Express.Multer.File[],
+  ) {
     const product = await this.findOne(id);
     if (!product) throw new NotFoundException('Product not found');
 
+    let uploadedImages: UploadApiResponse[] = [];
+    if (images && images.length > 0) {
+      for (const file of images) {
+        if (!file.mimetype.startsWith('image/')) {
+          throw new BadRequestException('Only image files are allowed');
+        }
+        if (file.size > 5_000_000) {
+          throw new BadRequestException('Image size must be under 5MB');
+        }
+      }
+      uploadedImages = await Promise.all(
+        images.map((image) => this.cloudinary.uploadImage(image)),
+      );
+    }
     const updatedProduct = await this.prisma.product.update({
       where: { id },
-      data: updateProductDto,
+      data: {
+        ...updateProductDto,
+        ...(uploadedImages.length > 0 && {
+          productImages: {
+            create: uploadedImages.map((img) => ({
+              url: img.secure_url,
+              publicId: img.public_id,
+            })),
+          },
+        }),
+      },
+      include: { productImages: true },
     });
     return {
       message: 'Product updated successfully',

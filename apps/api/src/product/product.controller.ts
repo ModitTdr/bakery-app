@@ -22,7 +22,7 @@ export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
   @Post()
-  @UseInterceptors(FilesInterceptor('images'))
+  @UseInterceptors(FilesInterceptor('images', 3))
   create(
     @Body() createProductDto: CreateProductDto,
     @UploadedFiles(
@@ -49,8 +49,13 @@ export class ProductController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
-    return this.productService.update(id, updateProductDto);
+  @UseInterceptors(FilesInterceptor('images', 3))
+  update(
+    @Param('id') id: string,
+    @Body() updateProductDto: UpdateProductDto,
+    @UploadedFiles() images: Express.Multer.File[],
+  ) {
+    return this.productService.update(id, updateProductDto, images);
   }
 
   @Delete(':id')
